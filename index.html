@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signing Git commits</title>
+  <style>
+    body {
+      font-family: 'Georgia', serif;
+      background-color: #fffacd;
+      padding-bottom: 80vh;
+    }
+
+    .content {
+      text-align: justify;
+      max-width: 46em;
+      padding: 1em;
+      width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .content img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    p {
+      color: #555;
+      line-height: 1.6;
+      font-size: large;
+    }
+
+    pre {
+      box-shadow: 0px 0px 10px 1px #abb2bf;
+      background-color: #282c34;
+      color: #abb2bf;
+      border: 1px solid #888;
+      border-radius: 5px;
+      font-family: 'Courier New', Courier, monospace;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <h1 style="text-align: center; color: #555;">Signing commits</h1>
+  <div style="text-align: center;">
+    <u>Samuel Branisa on 5 May 2024</u>
+    <div>
+      7 minute read
+    </div>
+    <a href="https://news.ycombinator.com/item?id=40265034">[Hackernews post]</a>
+  </div>
+  <div class="content">
+    <p>
+      One day over a dinner with a friend, we discussed the <a
+        href="https://docs.github.com/en/authentication/managing-commit-signature-verification/displaying-verification-statuses-for-all-of-your-commits">
+        vigilant mode</a>,
+      which is a feature on the GitHub platform used to verify cryptographic signatures in commits.
+    </p>
+    <p>
+      The outcome of the conversation was that if Git and GitHub support verification of signature in commits, then
+      there must be a reason for it.
+    </p>
+    <p>
+      In the following post, I will try to shed a bit more light on this topic.
+    </p>
+    <p>
+      I have created a <a href="https://github.com/Cupprum/git-gpg-signing">new public repository</a> in GitHub.<br>
+      Let's clone the repository and add an initial commit and see the result in Github.
+    </p>
+    <pre><code>
+  # Clone.
+  > git clone "git@github.com:Cupprum/git-gpg-signing.git"
+  > cd git-gpg-signing
+
+  # Config.
+  > git config user.name "Cupprum"
+  > git config user.email "branisa.samuel@icloud.com"
+
+  # Create commit.
+  > echo "Time is an illusion. Lunchtime doubly so." > test.txt
+  > git add test.txt
+  > git commit -m "committed by Cupprum as Cupprum"
+  > git push
+    </code></pre>
+    <img src="img/commit_cupprum_as_cupprum.png"
+      alt="Picture of commit on GitHub, the commit shows that its created by me.">
+    <h2 style="color: #555;">
+      How does GitHub make sure I am really me?
+    </h2>
+    <p>
+      Who am I even? That is a better question.
+    </p>
+    <p>
+      I am a user! I configured Git with my information. However, Git is a tool whose main purpose is a <a
+        href="https://git-scm.com">"distributed version control system"</a>.<br>
+      GitHub is the platform here. GitHub is used as the main server (even though Git is distributed). People use GitHub
+      as a service for collaboration on code-bases, therefore all the identity and access management has to be done on
+      the
+      side of GitHub.
+    </p>
+    <p>
+      The terms Authentication and Authorization are sometimes used interchangeably, however they have different
+      meanings.
+    </p>
+    <p>
+      <a
+        href="https://auth0.com/docs/get-started/identity-fundamentals/authentication-and-authorization">Authentication
+      is the process of verifying who a user is, while authorization is the process of verifying what they have access
+      to.
+      </a>
+    </p>
+    <p>
+      There are two primary methods for communication with a GitHub repository, each using different security mechanisms
+      for authentication purposes.
+    </p>
+    <p>
+      The first method is facilitated through SSH, utilizing asymmetrical cryptography.
+    </p>
+    <p>
+      The second method involves the use of HTTPS, wherein a Personal Access Token (PAT) serves as the means of
+      authentication.
+    </p>
+    <p>
+      When I push a commit to a repository, my local Git authenticates against GitHub (using SSH or PAT) and the
+      authenticated profile is authorized to execute the <i>push</i> functionality. Authentication in this case means
+      that the person who pushed the commit to GitHub is a user on the GitHub platform. Authorization means that the
+      GitHub user is authorized to push commits to the repository.
+    </p>
+    <p>
+      By nature Git is distributed. This allows for different types of workflows. They are discussed more in the
+      following <a href="https://git-scm.com/about/distributed">About Git section</a>. But the workflow I want to
+      highlight is the following.
+    </p>
+    <img src="img/integration_manager_workflow.png"
+      alt="Picture of Integration Manager Workflow from https://git-scm.com/about/distributed.">
+    <p>
+      <b>What if I want to push a commit created by a different person?</b>
+    </p>
+    <p>
+      By default, GitHub cannot verify who created the commit because the commit does not contain any secret to prove
+      its origin. However, there is an option to create a special type of branch, <a
+        href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits">
+        the protected branch</a>, which can enforce that only commits which were signed, and therefore contain
+      a secret, can be pushed to the specific branch.
+    </p>
+    <h2 style="color: #555;">
+      What does a commit look like?
+    </h2>
+    <p>
+      Luckily there are already many great existing resources which explain this topic much deeper. <a
+        href="https://git-scm.com/book/en/v2/Git-Internals-Git-Objects">The Official Git Book</a> or <a
+        href="https://youtu.be/lG90LZotrpo?feature=shared&t=720">talk by John Britton of GitHub</a>.
+    </p>
+    <p>
+      What's important for us here is that commits are snapshots of the <a
+        href="https://git-scm.com/book/en/v2/Git-Internals-Git-Objects">tree</a> and that they are represented as files
+      in the <i>.git/objects</i> folder. The <i>git log</i> command shows commit logs with details about each commit.
+    </p>
+    <pre><code>
+  > git log
+
+  commit 6092402952852e69abaf9f1e84624a804f081c88
+  Author: Cupprum <branisa.samuel@icloud.com>
+  Date:   Mon Apr 22 00:01:18 2024 +0200
+  
+      committed by Cupprum as Cupprum
+    </code></pre>
+    <p>
+      These logs also include commit hash. The internal representations of objects in Git are compressed but luckily git
+      offers a set of <a href="https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain">plumbing
+        commands</a> for inspection of git objects.
+    </p>
+    <p>
+      The <i>git cat-file</i> command can show us the internal representation of a commit. We use a commit hash obtained
+      from git log.
+    </p>
+    <pre><code>
+  > git cat-file -p 6092402952852e69abaf9f1e84624a804f081c88
+
+  tree b1eb7366a65119f68caf12ae975bc2f97f378c7d
+  author Cupprum <branisa.samuel@icloud.com> 1713736878 +0200
+  committer Cupprum <branisa.samuel@icloud.com> 1713736878 +0200
+  
+  committed by Cupprum as Cupprum
+    </code></pre>
+    <p>
+      The <i>git show</i> command can format the commit in a more readable way and provide additional information if we
+      specify extra flags.
+    </p>
+    <pre><code>
+  > git show --show-signature 6092402952852e69abaf9f1e84624a804f081c88
+
+  commit 6092402952852e69abaf9f1e84624a804f081c88
+  Author: Cupprum <branisa.samuel@icloud.com>
+  Date:   Mon Apr 22 00:01:18 2024 +0200
+
+      committed by Cupprum as Cupprum
+
+  diff --git a/test.txt b/test.txt
+  new file mode 100644
+  index 0000000..3264129
+  --- /dev/null
+  +++ b/test.txt
+  @@ -0,0 +1 @@
+  +Time is an illusion. Lunchtime doubly so.
+    </code></pre>
+    <p>
+      There is no secret present, which could be used to verify the authenticity of the commit.
+    </p>
+    <p>
+      This basically means that I can fabricate any commits.
+    </p>
+    <pre><code>
+  > git config user.name "Guido van Rossum"
+  > git config user.email "idontwantto@leakguidosmail.com"
+  > echo "Always look on the bright side of life." > test.txt
+  > git add test.txt
+  > git commit -m "committed by Cupprum as Guido van Rossum"
+  > git push
+    </code></pre>
+    <img src="img/commit_cupprum_as_gvanrossum.png"
+      alt="Picture of commit on GitHub, the commit shows that its created by Guido van Rossum.">
+    <p>
+      We can see that GitHub shows it as if I were the real user. It even shows the picture.
+    </p>
+    <p>
+      Hurray! The creator of Python is collaborating on my project!
+    </p>
+    <p>
+      This might be an issue for some people. I would not want some malicious work published under my name.
+    </p>
+    <p>
+      Let's try to create one more commit.
+    </p>
+    <pre><code>
+  > git config user.name "Robert Gers"
+  > git config user.email "idontwantto@leakroberstsmail.com"
+  > echo "One toke over the line, sweet Jesus." > test.txt
+  > git add test.txt
+  > git commit -m "committed by Cupprum as Robert"
+  > git push
+    </code></pre>
+    <p>
+      The commit is represented on the GitHub platform in the following way:
+    </p>
+    <img src="img/commit_cupprum_as_rgers.png"
+      alt="Picture of commit on GitHub, the commit shows that its created by Robert.">
+    <p>
+      Next to the commit message we can now see that the commit is unverified.
+    </p>
+    <h3 style="color: #555;">
+      Verified, Partially verified, Unverified.
+    </h3>
+    <p>
+      <a
+        href="https://docs.github.com/en/authentication/managing-commit-signature-verification/displaying-verification-statuses-for-all-of-your-commits">Vigilant
+        mode</a> is a really nice feature provided by the GitHub platform which allows verification of commit
+      signatures. <a href="https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work">Signing commits</a> is a feature
+      of Git.
+      Signing can be set up in an automated way. Vigilant mode automatically flags all commits on the GitHub platform
+      that do not contain a valid GPG signature.
+    </p>
+    <p>
+      GPG is a tool used for secure asymmetric cryptographic operations.<br>
+      <a href="https://en.wikipedia.org/wiki/Public-key_cryptography">Asymmetric cryptography</a> uses a combination of
+      private and public keys. If Alice holds the private key, she can use it to either encrypt or sign messages. Bob,
+      who holds the public key, can then either decrypt or verify these messages.
+    </p>
+    <p>
+      Here are some interesting documentation links: <a
+        href="https://docs.github.com/en/authentication/managing-commit-signature-verification/generating-a-new-gpg-key">How
+        to generate GPG key pair</a> and <a
+        href="https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits">Automatically
+        sign each commit</a>.
+    </p>
+    <p>
+      Once I have set up the GPG keys, I will try to execute one more commit. This commit will be signed using the
+      <i>-S</i> git flag.
+    </p>
+    <pre><code>
+  > git config user.name "Cupprum"
+  > git config user.email "branisa.samuel@icloud.com"
+  > echo "We apologise for the inconvenience. God's Final Message to His Creation" > test.txt
+  > git add test.txt
+  > git commit -S -m "committed by Cupprum as Cupprum"
+  > git push
+    </code></pre>
+    <p>
+      The commit is represented on the GitHub platform in the following way:
+    </p>
+    <img src="img/commit_cupprum_as_cupprum_verified.png"
+      alt="Picture of SIGNED commit on GitHub, the commit shows that its created by Cupprum and that the commit is verified.">
+    <p>
+    <p>
+      This new commit is tagged as verified because GitHub was able to verify the commit's signature using the public
+      key that I uploaded to the GitHub platform. Essentially, this means we can now mathematically prove the origin of
+      the
+      commit.
+    </p>
+    <p>
+      We can also inspect how the signed commit differs from a normal commit.
+    </p>
+    <pre><code>
+  > git cat-file -p e033b3de746d3dd85fbd4fae48620a7d33dc53b6
+
+  tree ec4efc48a7f224cbed1257fd234951ddd5b37548
+  parent fef1eb48bb012c79fdd8cde30af34f3eb17f8e1a
+  author Cupprum <branisa.samuel@icloud.com> 1713737041 +0200
+  committer Cupprum <branisa.samuel@icloud.com> 1713737041 +0200
+  gpgsig -----BEGIN PGP SIGNATURE-----
+
+   iHUEABYIAB0WIQTLIHQsRt2DrQ/VU/CruIA/s5FApwUCZiWNUQAKCRCruIA/s5FA
+   p45FAQCvJmhkeyVWoKMaqDe74NQiTLHlhxJ9ogswKyAfOWmifwEAhTPpLm5X5/RO
+   KA6TggqRienBZXASQ7xk44K5LhHUJws=
+   =N5EI
+   -----END PGP SIGNATURE-----
+
+  committed by Cupprum as Cupprum
+    </code></pre>
+    <p>
+      The output of the <i>git cat-file</i> command contains a PGP signature. GPG is a <a
+        href="https://www.gnu.org">GNU</a> implementation of the <a
+        href="https://en.wikipedia.org/wiki/Pretty_Good_Privacy#OpenPGP">OpenPGP</a> standard.
+    </p>
+    <pre><code>
+  > git show --show-signature e033b3de746d3dd85fbd4fae48620a7d33dc53b6
+
+  commit e033b3de746d3dd85fbd4fae48620a7d33dc53b6 (HEAD -> main, origin/main)
+  gpg: Signature made po  22 apr 00:04:01 2024 CEST
+  gpg:                using EDDSA key CB20742C46DD83AD0FD553F0ABB8803FB39140A7
+  gpg: Good signature from "Cupprum (GitHub GPG Key on NN Mac) <branisa.samuel@icloud.com>" [ultimate]
+  Author: Cupprum <branisa.samuel@icloud.com>
+  Date:   Mon Apr 22 00:04:01 2024 +0200
+  
+      committed by Cupprum as Cupprum
+  
+  diff --git a/test.txt b/test.txt
+  index e4023d2..d22327f 100644
+  --- a/test.txt
+  +++ b/test.txt
+  @@ -1 +1 @@
+  -One toke over the line, sweet Jesus.
+  +We apologise for the inconvenience. God's Final Message to His Creation
+    </code></pre>
+    <p>
+      The <i>git show</i> command shows the details of the signature, and also verifies it, if the <i>show-signature</i>
+      flag is used.
+    </p>
+    <h3 style="color: #555;">
+      Can I verify the commits myself?
+    </h3>
+    <p>
+      Commits are usually verified automatically on the platform or by using the provided Git tooling.
+    </p>
+    <p>
+      Previously we looked at how the signed commit is represented internally. We can take the output of <i>git
+        cat-file</i> command and split it into <i>Payload</i> and <i>Signature</i>.
+    </p>
+    <pre><code>
+  # Payload
+  > cat ./payload.txt
+
+  tree ec4efc48a7f224cbed1257fd234951ddd5b37548
+  parent fef1eb48bb012c79fdd8cde30af34f3eb17f8e1a
+  author Cupprum <branisa.samuel@icloud.com> 1713737041 +0200
+  committer Cupprum <branisa.samuel@icloud.com> 1713737041 +0200
+
+  committed by Cupprum as Cupprum
+
+  # Signature
+  > cat ./signature.txt
+
+  -----BEGIN PGP SIGNATURE-----
+  iHUEABYIAB0WIQTLIHQsRt2DrQ/VU/CruIA/s5FApwUCZiWNUQAKCRCruIA/s5FA
+  p45FAQCvJmhkeyVWoKMaqDe74NQiTLHlhxJ9ogswKyAfOWmifwEAhTPpLm5X5/RO
+  KA6TggqRienBZXASQ7xk44K5LhHUJws=
+  =N5EI
+  -----END PGP SIGNATURE-----
+    </code></pre>
+    <p>
+      Now we can just normally use <i>gpg</i> in order to verify the signature ourselves.
+    </p>
+    <pre><code>
+  > gpg --verify ./signature.txt ./payload.txt
+
+  gpg: Signature made po  22 apr 00:04:01 2024 CEST
+  gpg:                using EDDSA key CB20742C46DD83AD0FD553F0ABB8803FB39140A7
+  gpg: Good signature from "Cupprum (GitHub GPG Key on NN Mac) <branisa.samuel@icloud.com>" [ultimate]
+    </code></pre>
+    <h3 style="color: #555;">
+      There are also other methods for creating verified commits on the GitHub platform.
+    </h3>
+    <p>
+      All the commits created on the platform itself (edits in GitHub, or in Github Codespaces) are automatically signed
+      by short-lived GPG keys handled by GitHub.
+    </p>
+    <p>
+      The good thing about this automated way of signing commits on the GitHub platform is that it is fully automated
+      and does not require any initial setup.
+    </p>
+    <h3 style="color: #555;">
+      Why should I care about code signing?
+    </h3>
+    <p>
+      Signing commits can make it more difficult for malicious parties to smuggle in code. This can be particularly
+      useful for release managers. Checking whether all commits have been signed before publishing a release could help
+      prevent some issues.
+    </p>
+    <p>
+      Signed commits also help with traceability in case unwanted code is found.
+    </p>
+    <p>
+      After Gitea's <a href="https://github.com/go-gitea/gitea/issues/4167">infrastructure was compromised</a>, they
+      began <a href="https://github.com/go-gitea/gitea/issues/4374">signing their releases</a>.
+    </p>
+    <p>
+      Opinions on this subject vary.
+    </p>
+    <p>
+      Some people advocate that signing only releases is enough. Others believe that once GPG keys are set up, it's easy
+      to configure automated signing of commits, so we might as well also sign the commits. Another group of people
+      argues that by signing each commit, we load the key into memory more often. This means that if an attacker has
+      access to a machine, they will not be able to access the key when it's properly stored, but the key might be found
+      in memory unencrypted. Different opinion is that people do not want to rotate their keys frequently. Yet another
+      opinion is using <a
+        href="https://www.gnupg.org/howtos/card-howto/en/ch05s02.html#:~:text=Subkeys%20are%20keys%20to%20use,single%20private%20key%20are%20possible.">Subkeys</a>
+      to solve the issue of rotating keys. To which the majority of people without a concrete opinion answer that the
+      overhead of this whole signing setup is getting too complicated to manage properly.
+    </p>
+    <p>
+      In the recent years, a new standard for signing also emerged, <a
+        href="https://www.sigstore.dev/how-it-works">sigstore</a>. It promises to simplify the key management by using
+      short-lived keys. By simplifying the key management, this solution should scale nicer. This standard however
+      targets signing only releases and not commits themselves.
+    </p>
+    <p>
+      Sigstore is a response to the increasing number of supply chain attacks. The project is now under the <a
+        href="https://www.linuxfoundation.org/press/press-release/linux-foundation-announces-free-sigstore-signing-service-to-confirm-origin-and-authenticity-of-software">Linux
+        Foundation</a> and was co-developed by <a
+        href="https://www.redhat.com/en/blog/sigstore-open-answer-software-supply-chain-trust-and-security">RedHat</a>
+      and <a href="https://security.googleblog.com/2021/03/introducing-sigstore-easy-code-signing.html">Google</a>.
+    </p>
+    <p>
+      <a href="https://www.python.org/download/sigstore/">CPython</a> and <a
+        href="https://kubernetes.io/blog/2022/05/03/kubernetes-1-24-release-announcement/#signing-release-artifacts">Kubernetes</a>
+      are among the first larger projects to sign their releases with sigstore.
+    </p>
+    <p>
+      <a href="https://www.wired.com/story/github-code-signing-sigstore/">GitHub also supports sigstore</a> in
+      order to <a href="https://github.blog/2022-10-25-why-were-excited-about-the-sigstore-general-availability/">sign
+        npm packages</a> and <a
+        href="https://github.blog/2021-12-06-safeguard-container-signing-capability-actions/">sign containers</a>
+    </p>
+    <p>
+      One of the newer examples of <a
+        href="https://johnstawinski.com/2024/01/11/playing-with-fire-how-we-executed-a-critical-supply-chain-attack-on-pytorch/">successful
+        supply chain</a> attacks was on Pytorch project. These types of <a
+        href="https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610">supply chain attacks do not
+        necessarily target only public projects</a>. While I was writing this post the the following supply chain attack
+      on <a href="https://en.wikipedia.org/wiki/XZ_Utils_backdoor">xz utils</a> happened.
+    </p>
+  </div>
+</body>
+
+</html>
